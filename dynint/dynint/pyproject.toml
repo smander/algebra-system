@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=65"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dynint"
+version = "0.1.0"
+description = "Binary static mapping and dynamic tracing utilities"
+readme = "README.md"
+authors = [{name = "Your Name", email = "you@example.com"}]
+requires-python = ">=3.9"
+dependencies = [
+    "pyelftools>=0.30",
+    "frida>=16.0.0",
+]
+keywords = ["binary", "introspection", "instrumentation", "frida", "elf"]
+
+[project.optional-dependencies]
+bcc = ["bcc>=0.21.0"]
+analysis = ["capstone>=4.0.2"]
+
+[project.scripts]
+dynint = "dynint.cli:main"
+dynmap = "dynint.cli:main_map"
+dyntrace = "dynint.cli:main_trace"

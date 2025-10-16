@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  dynint-test:
+    build: .
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONPATH=/app/dynint
+    command: python -m pytest tests/ -v --tb=short
+    
+  dynint-shell:
+    build: .
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONPATH=/app/dynint
+    command: /bin/bash
+    stdin_open: true
+    tty: true
+    
+  dynint-frida:
+    build: .
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONPATH=/app/dynint
+    command: /bin/bash
+    stdin_open: true
+    tty: true
+    privileged: true
+    cap_add:
+      - SYS_PTRACE
+      - SYS_ADMIN
+    security_opt:
+      - seccomp:unconfined
+    
+  dynint-map:
+    build: .
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONPATH=/app/dynint
+    command: python -m dynint.cli map spacecraft_server_linux_x86 --output /tmp/map.json --bytes --with-dwarf
