@@ -6,6 +6,32 @@
 - `dynmap` — static analyzer that enumerates functions, basic blocks, PLT callsites, and dynamic dependencies
 - `dyntrace` — dynamic tracer built on Frida for runtime instrumentation
 
+## 🚨 Spacecraft Server Vulnerability Tracer
+
+**NEW**: Complete solution for tracing the execution path from `recvfrom` network packet reception to the CWE-20 input validation vulnerability.
+
+**Quick Start:**
+```bash
+# Run automated trace (Docker)
+docker compose run --rm dynint-frida bash run_full_trace.sh
+
+# View results
+docker compose run --rm dynint-frida cat output/vulnerability_report.txt
+```
+
+**Documentation:**
+- 📖 [Complete Guide](TRACE_VULNERABILITY_README.md) - Detailed documentation
+- 📝 [Usage Examples](USAGE_EXAMPLES.md) - Step-by-step examples
+- 🇺🇦 [Ukrainian Guide](UKRAINIAN_GUIDE.md) - Українською мовою
+
+**What it does:**
+- Traces **actual runtime execution** from network packet entry to vulnerability point
+- Captures all 31 critical machine instructions along the path
+- Shows data flow of the malicious `service_type` byte through memory
+- Confirms vulnerability exploitation with packet testing
+
+---
+
 ## Docker Setup
 
 Build and start containers:
