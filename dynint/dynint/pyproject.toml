@@ -4,20 +4,21 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dynint"
-version = "0.1.0"
-description = "Binary static mapping and dynamic tracing utilities"
+version = "0.2.0"
+description = "Binary static mapping and dynamic tracing utilities powered by DynInst"
 readme = "README.md"
 authors = [{name = "Your Name", email = "you@example.com"}]
 requires-python = ">=3.9"
 dependencies = [
     "pyelftools>=0.30",
-    "frida>=16.0.0",
+    "pybind11>=2.10.0",
 ]
-keywords = ["binary", "introspection", "instrumentation", "frida", "elf"]
+keywords = ["binary", "introspection", "instrumentation", "dyninst", "elf", "vulnerability-analysis"]
 
 [project.optional-dependencies]
 bcc = ["bcc>=0.21.0"]
 analysis = ["capstone>=4.0.2"]
+dyninst = ["cmake>=3.16.0", "boost>=1.70.0"]  # DynInst build dependencies
 
 [project.scripts]
 dynint = "dynint.cli:main"

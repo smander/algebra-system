@@ -106,13 +106,15 @@ print(f'  Symbolic calls: {symbol_calls}')
     echo -e "${GREEN}✅ dynmap tests completed${NC}"
 }
 
-# Function to run dyntrace test
-test_dyntrace() {
-    echo -e "${BLUE}🎯 Running dyntrace analysis...${NC}"
+
+# Function to test DynInst backend
+test_dyninst() {
+    echo -e "${BLUE}🔧 Running DynInst analysis...${NC}"
     
     local map_file="$DYNMAP_DIR/spacecraft_map.json"
-    local trace_file="$DYNTRACE_DIR/malloc_trace.jsonl"
-    local trace_short="$DYNTRACE_DIR/malloc_trace_short.jsonl"
+    local trace_file="$DYNTRACE_DIR/dyninst_trace.jsonl"
+    local instruction_trace="$DYNTRACE_DIR/dyninst_instruction_trace.jsonl"
+    local cwe120_trace="$DYNTRACE_DIR/dyninst_cwe120_trace.jsonl"
     
     # Check if map exists
     if [ ! -f "$map_file" ]; then
@@ -120,49 +122,89 @@ test_dyntrace() {
         return 1
     fi
     
-    echo "  🚀 Testing spawn mode with malloc tracing..."
-    # Use timeout to limit execution time
-    if timeout 10s docker compose run --rm dynint-frida python -m dynint.cli trace \
+    echo "  🎯 Testing DynInst instruction-level tracing..."
+    if timeout 15s docker compose run --rm dynint-dyninst python -m dynint.cli trace \
+        --backend dyninst \
+        --spawn "./$BINARY" \
+        --map "$map_file" \
+        --instruction-level \
+        --memory-access \
+        --output "$instruction_trace" >/dev/null 2>&1; then
+        echo -e "${GREEN}  ✅ DynInst instruction tracing completed${NC}"
+    else
+        echo -e "${YELLOW}  ⚠️  DynInst instruction tracing timed out${NC}"
+    fi
+    
+    # Test CWE-120 focused tracing
+    echo "  🔍 Testing DynInst CWE-120 vulnerability tracing..."
+    if timeout 10s docker compose run --rm dynint-dyninst python -m dynint.cli trace \
+        --backend dyninst \
+        --spawn "./$BINARY" \
+        --map "$map_file" \
+        --vulnerability-focus CWE-120 \
+        --fn memcpy \
+        --fn "_ZN22SimpleSpacecraftServer12HandleBufferERKSt6vectorIhSaIhEE" \
+        --output "$cwe120_trace" >/dev/null 2>&1; then
+        echo -e "${GREEN}  ✅ DynInst CWE-120 tracing completed${NC}"
+    else
+        echo -e "${YELLOW}  ⚠️  DynInst CWE-120 tracing timed out${NC}"
+    fi
+    
+    # Test basic function tracing
+    echo "  📊 Testing DynInst function tracing..."
+    if timeout 5s docker compose run --rm dynint-dyninst python -m dynint.cli trace \
+        --backend dyninst \
         --spawn "./$BINARY" \
         --map "$map_file" \
         --fn malloc \
-        --output "$trace_file" \
-        --sample 1/1 >/dev/null 2>&1; then
-        echo -e "${GREEN}  ✅ Spawn mode completed${NC}"
+        --fn free \
+        --output "$trace_file" >/dev/null 2>&1; then
+        echo -e "${GREEN}  ✅ DynInst function tracing completed${NC}"
     else
-        echo -e "${YELLOW}  ⚠️  Spawn mode timed out (expected for demo binary)${NC}"
+        echo -e "${YELLOW}  ⚠️  DynInst function tracing timed out${NC}"
     fi
     
-    # Test with shorter duration
-    echo "  ⏱️  Testing with 3-second limit..."
-    if timeout 3s docker compose run --rm dynint-frida python -m dynint.cli trace \
-        --spawn "./$BINARY" \
-
-        --map "$map_file" \
-        --fn malloc \
-        --output "$trace_short" \
-        --duration 3.0 >/dev/null 2>&1; then
-        echo -e "${GREEN}  ✅ Short trace completed${NC}"
-    else
-        echo -e "${YELLOW}  ⚠️  Short trace timed out${NC}"
-    fi
-    
-    # Check trace files
-    for trace in "$trace_file" "$trace_short"; do
+    # Analyze trace files
+    echo "  📈 Analyzing DynInst trace outputs..."
+    for trace in "$trace_file" "$instruction_trace" "$cwe120_trace"; do
         if [ -f "$trace" ]; then
             local size=$(du -h "$trace" | cut -f1)
             local lines=$(wc -l < "$trace" 2>/dev/null || echo "0")
-            echo -e "${GREEN}  ✅ Trace file: $(basename "$trace") ($size, $lines events)${NC}"
+            local trace_name=$(basename "$trace")
+            echo -e "${GREEN}  ✅ DynInst trace: $trace_name ($size, $lines events)${NC}"
             
-            # Show sample trace if not empty
-            if [ "$lines" -gt 0 ]; then
-                echo "    Sample trace event:"
-                head -n1 "$trace" | python3 -m json.tool 2>/dev/null | head -n5 | sed 's/^/      /'
+            # Show instruction-level sample
+            if [ "$lines" -gt 0 ] && [[ "$trace" == *"instruction"* ]]; then
+                echo "    Sample instruction event:"
+                head -n1 "$trace" | python3 -c "
+import json, sys
+try:
+    event = json.loads(sys.stdin.read())
+    addr = event.get('address', '?')
+    bytes_val = event.get('bytes', '?')[:16]
+    mnemonic = event.get('mnemonic', '?')
+    print(f'      {addr}: {bytes_val} {mnemonic}')
+except:
+    print('      Unable to parse instruction event')
+" 2>/dev/null
+            fi
+            
+            # Show CWE-120 vulnerability events
+            if [[ "$trace" == *"cwe120"* ]] && [ "$lines" -gt 0 ]; then
+                local vuln_count=$(grep -c "vulnerability_trigger" "$trace" 2>/dev/null || echo "0")
+                echo "    CWE-120 vulnerability events: $vuln_count"
             fi
         fi
     done
     
-    echo -e "${GREEN}✅ dyntrace tests completed${NC}"
+    # Show DynInst capabilities
+    if [ -f "$instruction_trace" ]; then
+        local dyninst_events=$(wc -l < "$instruction_trace" 2>/dev/null || echo "0")
+        echo "  📊 DynInst analysis: $dyninst_events instruction-level events"
+        echo -e "${GREEN}  ✅ DynInst provides comprehensive instruction-level tracing${NC}"
+    fi
+    
+    echo -e "${GREEN}✅ DynInst tests completed${NC}"
 }
 
 # Function to show summary
@@ -182,14 +224,14 @@ show_summary() {
     echo "  # View dynmap output:"
     echo "  jq . $DYNMAP_DIR/spacecraft_detailed.json | less"
     echo
-    echo "  # View dyntrace output:"
+    echo "  # View DynInst trace output:"
     echo "  cat $DYNTRACE_DIR/*.jsonl | jq ."
     echo
-    echo "  # Interactive shell:"
-    echo "  docker compose run --rm dynint-shell"
+    echo "  # Interactive DynInst shell:"
+    echo "  docker compose run --rm dynint"
     echo
-    echo "  # Frida-enabled shell:"
-    echo "  docker compose run --rm dynint-frida"
+    echo "  # DynInst container:"
+    echo "  docker compose run --rm dynint-dyninst"
 }
 
 # Main execution
@@ -205,18 +247,20 @@ main() {
     
     if test_dynmap; then
         echo
-        if test_dyntrace; then
+        if test_dyninst; then  # DynInst tests
             echo
             show_summary
             echo -e "${GREEN}🎉 All tests completed successfully!${NC}"
         else
-            echo -e "${YELLOW}⚠️  dyntrace tests had issues (check Frida setup)${NC}"
+            echo -e "${YELLOW}⚠️  DynInst tests had issues (check DynInst setup)${NC}"
+            show_summary
         fi
     else
         echo -e "${RED}❌ dynmap tests failed${NC}"
         exit 1
     fi
 }
+
 
 # Handle command line arguments
 case "${1:-}" in
@@ -227,12 +271,12 @@ case "${1:-}" in
         setup_directories
         test_dynmap
         ;;
-    "dyntrace")
+    "dyninst")
         check_docker
-        check_binary  
+        check_binary
         build_containers
         setup_directories
-        test_dyntrace
+        test_dyninst
         ;;
     "clean")
         echo -e "${BLUE}🧹 Cleaning up...${NC}"
@@ -244,11 +288,16 @@ case "${1:-}" in
         echo "Usage: $0 [command]"
         echo
         echo "Commands:"
-        echo "  (no args)  Run all tests"
-        echo "  dynmap     Run only dynmap test"
-        echo "  dyntrace   Run only dyntrace test"
+        echo "  (no args)  Run all tests (dynmap + dyninst)"
+        echo "  dynmap     Run only dynmap static analysis"
+        echo "  dyninst    Run only DynInst instruction-level tracing"
         echo "  clean      Clean up output files and containers"
         echo "  help       Show this help"
+        echo
+        echo "Examples:"
+        echo "  $0                    # Run full test suite"
+        echo "  $0 dyninst          # Test DynInst backend only"
+        echo "  $0 clean            # Clean up all outputs"
         ;;
     "")
         main

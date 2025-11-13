@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from dynint import dynmap, mapfile
+from dynint import static, mapfile
 
 
 class _FakeInvalidOperationError(Exception):
@@ -68,7 +68,7 @@ def fake_frida_module():
 @pytest.fixture(scope="session")
 def spacecraft_mapdata() -> mapfile.MapData:
     binary = Path(__file__).resolve().parents[1] / "spacecraft_server_linux_x86"
-    mapping = dynmap.generate_map(binary_path=binary, include_bytes=True)
+    mapping = static.generate_map(binary_path=binary, include_bytes=True)
     return mapfile.MapData.from_json(mapping)
 
 

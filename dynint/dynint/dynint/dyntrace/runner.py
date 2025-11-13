@@ -5,12 +5,12 @@ import json
 from pathlib import Path
 from typing import Iterable, Optional
 
-from . import frida_backend
+from . import dyninst_backend
 from .. import mapfile
 
 
 BACKENDS = {
-    "frida": frida_backend.FridaBackend,
+    "dyninst": dyninst_backend.DynInstBackend,  # DynInst backend (simulation for testing)
     # Future backends can be added here.
 }
 
@@ -28,6 +28,11 @@ def run_trace(
     sample: Optional[str] = None,
     since: Optional[float] = None,
     duration: Optional[float] = None,
+    # DynInst-specific options
+    instruction_level: bool = False,
+    memory_access: bool = False,
+    control_flow: bool = False,
+    vulnerability_focus: Optional[str] = None,
 ) -> bool:
     try:
         backend_cls = BACKENDS[backend]
@@ -36,6 +41,7 @@ def run_trace(
 
     mapping = mapfile.MapData.load(map_path)
 
+    # Create tracer with DynInst options
     tracer = backend_cls(
         mapping=mapping,
         libs=list(libs or []),
@@ -45,6 +51,10 @@ def run_trace(
         sample=sample,
         since=since,
         duration=duration,
+        instruction_level=instruction_level,
+        memory_access=memory_access,
+        control_flow=control_flow,
+        vulnerability_focus=vulnerability_focus,
     )
     if pid is not None:
         tracer.attach(pid)
